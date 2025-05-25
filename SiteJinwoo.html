@@ -1,0 +1,348 @@
+
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Solo Leveling RPG Immersif</title>
+<!-- Fonts Google -->
+<link href="https://fonts.googleapis.com/css2?family=Orbitron&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+/* --- CSS Solo Leveling Style version Bleu foncé / Violet foncé --- */
+body {
+  margin: 0; padding: 20px;
+  background: radial-gradient(circle at center, #0b1533 0%, #0a0826 80%);
+  color: #a89bff;
+  font-family: 'Share Tech Mono', monospace;
+  user-select: none;
+  min-height: 100vh;
+}
+
+h1, h2 {
+  font-family: 'Orbitron', sans-serif;
+  text-transform: uppercase;
+  color: #8c79ff;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px #8c79ffaa, 0 0 20px #5a44ffcc;
+}
+
+input, select, button {
+  background-color: #151c4d;
+  border: 1.5px solid #7a69ff;
+  border-radius: 5px;
+  color: #b6afff;
+  padding: 10px 14px;
+  margin: 10px 5px 20px 0;
+  font-size: 1rem;
+  font-family: 'Share Tech Mono', monospace;
+  transition: box-shadow 0.3s ease;
+}
+
+input::placeholder {
+  color: #3b3c70;
+}
+
+input:focus, select:focus, button:focus {
+  outline: none;
+  box-shadow: 0 0 10px #8c79ff;
+}
+
+button {
+  cursor: pointer;
+  background: linear-gradient(90deg, #7a69ff, #3f2a8a);
+  font-weight: bold;
+  letter-spacing: 1.5px;
+  transition: background 0.3s ease, transform 0.15s ease;
+}
+
+button:hover {
+  background: linear-gradient(90deg, #3f2a8a, #7a69ff);
+  transform: scale(1.1);
+}
+
+/* XP Bar style */
+progress {
+  width: 100%;
+  height: 28px;
+  border-radius: 20px;
+  overflow: hidden;
+  appearance: none;
+  margin-bottom: 30px;
+  box-shadow: 0 0 15px #8c79ffcc;
+}
+
+progress::-webkit-progress-bar {
+  background-color: #121c4f;
+}
+
+progress::-webkit-progress-value {
+  background: linear-gradient(90deg, #7a69ff, #463da6);
+}
+
+/* Quêtes list */
+ul#quest-list {
+  padding-left: 0;
+  list-style: none;
+  max-width: 600px;
+}
+
+ul#quest-list li {
+  background: #1a1f5fbb;
+  border: 1px solid #7a69ff88;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 0 8px #7a69ffbb;
+  font-size: 1.1rem;
+}
+
+ul#quest-list li button {
+  background: #3f2a8a;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 0.9rem;
+  color: #b6afff;
+  box-shadow: 0 0 5px #8c79ffcc;
+  transition: background 0.3s ease;
+}
+
+ul#quest-list li button:hover {
+  background: #7a69ff;
+  color: #3f2a8a;
+  box-shadow: 0 0 12px #b6afff;
+}
+
+/* Graphique */
+canvas#xpChart {
+  background: #1b2061;
+  border-radius: 16px;
+  box-shadow: 0 0 20px #8c79ffcc;
+  max-width: 700px;
+  width: 100%;
+  height: 320px;
+}
+</style>
+</head>
+<body>
+
+<h1>Solo Leveling RPG Immersif</h1>
+
+<section>
+  <h2>Personnage</h2>
+  <input id="character-name" placeholder="Nom du personnage" />
+  <select id="character-class">
+    <option value="Chasseur">Chasseur</option>
+    <option value="Sorcier">Sorcier</option>
+    <option value="Guerrier">Guerrier</option>
+  </select>
+  <button onclick="saveCharacter()">Sauvegarder</button>
+  <p id="player-level">Niveau : 1</p>
+  <progress id="xp-bar" value="0" max="100"></progress>
+</section>
+
+<section>
+  <h2>Quêtes quotidiennes</h2>
+  <input id="quest-input" placeholder="Nouvelle quête" />
+  <button onclick="addQuest()">Ajouter une quête</button>
+  <ul id="quest-list"></ul>
+</section>
+
+<section>
+  <h2>Progression XP</h2>
+  <canvas id="xpChart"></canvas>
+</section>
+
+<script>
+// === Initialisation des données du joueur ===
+let player = {
+  name: "",
+  class: "",
+  level: 1,
+
+  xp: 0,
+  xpToNextLevel: 100,
+  quests: [],
+  xpLog: []
+};
+
+// === Sauvegarde et chargement ===
+function saveGame() {
+  localStorage.setItem("playerData", JSON.stringify(player));
+}
+
+function loadGame() {
+  const saved = localStorage.getItem("playerData");
+  if (saved) {
+    player = JSON.parse(saved);
+    updateQuestList();
+    updateLevelUI();
+    renderXPChart();
+  }
+}
+
+// === Fonctions de création et gestion ===
+function saveCharacter() {
+  player.name = document.getElementById("character-name").value.trim();
+  player.class = document.getElementById("character-class").value;
+  if (!player.name) {
+    alert("Merci de renseigner un nom valide.");
+    return;
+  }
+  updateLevelUI();
+  saveGame();
+}
+
+// Ajouter une quête
+function addQuest() {
+  const questInput = document.getElementById("quest-input");
+  const quest = questInput.value.trim();
+  if (quest !== "") {
+    player.quests.push(quest);
+    questInput.value = "";
+    updateQuestList();
+    saveGame();
+  } else {
+    alert("Merci d’écrire une quête valide.");
+  }
+}
+
+// Afficher la liste des quêtes avec boutons valider
+function updateQuestList() {
+  const questList = document.getElementById("quest-list");
+  questList.innerHTML = "";
+  player.quests.forEach((q, index) => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <span>${q}</span> 
+      <button onclick="completeQuest(${index})">Valider</button>
+    `;
+    questList.appendChild(li);
+  });
+}
+
+// Valider une quête, supprimer de la liste et ajouter XP
+function completeQuest(index) {
+  player.quests.splice(index, 1);
+  gainXP(20);
+  updateQuestList();
+  saveGame();
+}
+
+// Gérer l’XP et passage de niveau
+function gainXP(amount) {
+  player.xp += amount;
+  if (player.xp >= player.xpToNextLevel) {
+    player.level++;
+    player.xp -= player.xpToNextLevel;
+    player.xpToNextLevel += 50;
+    alert("✨ Niveau supérieur !");
+  }
+  logDailyXP();
+  updateLevelUI();
+  saveGame();
+}
+
+// Mettre à jour interface niveau et barre d’XP
+function updateLevelUI() {
+  document.getElementById("player-level").textContent = `Niveau : ${player.level}`;
+  const xpBar = document.getElementById("xp-bar");
+  if (xpBar) {
+    xpBar.max = player.xpToNextLevel;
+    xpBar.value = player.xp;
+  }
+}
+
+// Suivi journalier de l’XP pour le graphique
+function logDailyXP() {
+  const today = new Date().toISOString().split("T")[0];
+  const existing = player.xpLog.find(entry => entry.date === today);
+  if (existing) {
+    existing.xp = player.xp;
+  } else {
+    player.xpLog.push({ date: today, xp: player.xp });
+  }
+}
+
+// Afficher le graphique d’évolution de l’XP
+function renderXPChart() {
+  const ctx = document.getElementById("xpChart").getContext("2d");
+
+  // Supprime les charts existants pour éviter doublons
+  if (window.xpChartInstance) window.xpChartInstance.destroy();
+
+  const labels = player.xpLog.map(entry => entry.date);
+  const data = player.xpLog.map(entry => entry.xp);
+
+  window.xpChartInstance = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "XP Journalier",
+        data: data,
+        borderColor: "#8c79ff",
+        backgroundColor: "rgba(140, 121, 255, 0.25)",
+        tension: 0.3,
+        fill: true,
+        pointRadius: 4,
+        pointHoverRadius: 7,
+        borderWidth: 3,
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            color: "#8c79ff",
+            font: { family: 'Share Tech Mono', size: 14 }
+          },
+          grid: {
+            color: "#3b3c70"
+          }
+        },
+        x: {
+          ticks: {
+            color: "#8c79ff",
+            font: { family: 'Share Tech Mono', size: 12 }
+          },
+          grid: {
+            color: "#3b3c70"
+          }
+        }
+      },
+      plugins: {
+        legend: {
+          labels: {
+            color: "#8c79ff",
+            font: { family: 'Orbitron', size: 16 }
+          }
+        },
+        tooltip: {
+          backgroundColor: "#121c4f",
+          titleFont: { family: 'Orbitron', size: 14 },
+          bodyFont: { family: 'Share Tech Mono', size: 12 },
+          cornerRadius: 5,
+          padding: 10,
+          displayColors: false
+        }
+      }
+    }
+  });
+}
+
+// Chargement automatique à l’ouverture
+window.onload = loadGame;
+</script>
+
+</body>
+</html>
